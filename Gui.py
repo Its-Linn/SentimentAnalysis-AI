@@ -24,8 +24,7 @@ stemmer = stemmer_factory.create_stemmer()
 stop_words = set(stopwords.words('indonesian'))
 
 # Load Model dan Vectorizer
-model = joblib.load(r'NB2\nbmodel.pkl')
-tfidf = joblib.load(r'NB2\tfidf_vect.pkl')
+model = joblib.load(r'Model\best_model.pkl')
 
 
 def on_closing():
@@ -35,13 +34,16 @@ def on_closing():
         sys.exit()
 
 def clean_text(text):
-    text = re.sub(r"http\S+|www\S+|https\S+", '', text, flags=re.MULTILINE)  # Menghapus URL
-    text = re.sub(r'@\w+', '', text) #Menghapus @
-    text = re.sub(r'#\w+', '', text)  #Menghapus #
-    text = re.sub(r'\d+', '', text) #Menghapus Angka
-    text = re.sub(r'[^\w\s]', '', text) #Menghapus Tanda Baca
-    text = text.lower()
-    words = word_tokenize(text) 
+    if not isinstance(text, str):
+        return ""
+
+    text = re.sub(r"http\S+|www\S+|https\S+", '', text, flags=re.MULTILINE)   # Menghapus URL
+    text = re.sub(r'@\w+', '', text) # Menghapus mention (@username)
+    text = re.sub(r'#\w+', '', text) # Menghapus hashtag (#hashtag)
+    text = re.sub(r'\d+', '', text) # Menghapus angka
+    text = re.sub(r'[^\w\s]', '', text) # Menghapus tanda baca kecuali spasi
+    text = text.lower() # Mengubah teks menjadi lowercase
+    words = word_tokenize(text) #Tokenisasi
     words = [stemmer.stem(word) for word in words if word not in stop_words]
     return ' '.join(words)
 
@@ -49,9 +51,8 @@ def analyze_sentiment():
     input_text = entry.get("1.0", tk.END).strip()
     if input_text:
         preprocessed_text = clean_text(input_text)
-        input_tfidf = tfidf.transform([preprocessed_text])
-        prediction = model.predict(input_tfidf)[0]
-        confidence = max(model.predict_proba(input_tfidf)[0]) * 100
+        prediction = model.predict(preprocessed_text)
+        confidence = max(model.predict_proba(preprocessed_text)) * 100
 
         insert_data(input_text, preprocessed_text,prediction)
 
@@ -63,16 +64,13 @@ def analyze_sentiment():
 def create_chart():
     cursor = conn.cursor()
     
-    # Ambil jumlah label dari database
     cursor.execute("SELECT label, COUNT(*) FROM tweets GROUP BY label")
     label_counts = cursor.fetchall()
     
-    # Jika tidak ada data, tampilkan pesan dan keluar
     if not label_counts:
         messagebox.showwarning("No Data", "Tidak ada data untuk ditampilkan.")
         return
     
-    # Pisahkan label dan jumlah
     labels, sizes = zip(*label_counts)
     
     fig, ax = plt.subplots(figsize=(5, 4))
